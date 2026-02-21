@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BTCUSDT · 1m</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #131722;
+  --bg2:       #1e222d;
+  --bg3:       #2a2e39;
+  --line:      #2a2e39;
+  --line2:     #363a45;
+  --text:      #d1d4dc;
+  --muted:     #787b86;
+  --bull:      #26a69a;
+  --bear:      #ef5350;
+  --bull-dim:  #1a6e69;
+  --bear-dim:  #9c3a38;
+  --blue:      #2196f3;
+  --font:      'IBM Plex Sans', sans-serif;
+  --mono:      'IBM Plex Mono', monospace;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+
+/* ── Top Bar ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  gap: 16px;
+  background: var(--bg);
+  user-select: none;
+}
+
+.symbol { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; color: var(--text); }
+.interval-tag {
+  font-size: 11px; font-weight: 500;
+  background: var(--bg3); color: var(--muted);
+  padding: 2px 6px; border-radius: 3px;
+}
+
+.topbar-ohlc { display: flex; align-items: center; gap: 14px; margin-left: 8px; }
+.topbar-ohlc .lbl { color: var(--muted); font-size: 11px; }
+.topbar-ohlc .val { font-family: var(--mono); font-size: 12px; }
+.val-o { color: var(--text); }
+.val-h { color: var(--bull); }
+.val-l { color: var(--bear); }
+.val-c { font-weight: 500; }
+.val-chg { font-size: 11px; font-weight: 500; }
+
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.live-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; letter-spacing: 0.5px; color: var(--muted);
+  font-family: var(--mono);
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.live-dot.on { background: var(--bull); animation: blink 1.4s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+/* ── Price Ticker ── */
+.ticker {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+#ticker-price {
+  font-family: var(--mono); font-size: 26px; font-weight: 500;
+  transition: color 0.15s;
+}
+#ticker-change { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+
+/* ── Layout ── */
+.layout { display: flex; height: calc(100vh - 36px - 44px); }
+
+/* ── Chart Pane ── */
+.chart-pane {
+  flex: 1;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  border-right: 1px solid var(--line);
+}
+
+#chart-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+canvas#c {
+  position: absolute; inset: 0;
+  display: block;
+}
+
+/* Crosshair tooltip */
+#crosshair-tip {
+  position: absolute;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+  min-width: 140px;
+}
+
+/* ── Right Panel ── */
+.right-panel {
+  width: 220px;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+}
+
+.panel-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-title {
+  font-size: 10px; letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* Timer */
+.timer-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.timer-label { font-size: 11px; color: var(--muted); }
+#timer-val { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text); }
+
+#timer-track {
+  width: 100%; height: 3px;
+  background: var(--bg3); border-radius: 2px; overflow: hidden;
+}
+#timer-fill {
+  height: 100%; border-radius: 2px;
+  background: var(--bull);
+  transition: width 0.9s linear, background 0.3s;
+}
+
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-item .sl { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.stat-item .sv { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+
+/* History list */
+.history-scroll { flex: 1; overflow-y: auto; }
+.history-scroll::-webkit-scrollbar { width: 3px; }
+.history-scroll::-webkit-scrollbar-thumb { background: var(--bg3); }
+
+.h-header {
+  display: grid;
+  grid-template-columns: 38px 1fr 1fr 1fr;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px; color: var(--muted); letter-spacing: 0.5px;
+  position: sticky; top: 0; background: var(--bg); z-index: 1;
+}
+
+.h-row {
+  display: grid;
+  grid-template-columns: 38px 1fr 1fr 1fr;
+  padding: 5px 12px;
+  border-bottom: 1px solid #1c2030;
+  font-family: var(--mono); font-size: 11px;
+  cursor: default;
+  transition: background 0.1s;
+}
+.h-row:hover { background: var(--bg2); }
+.h-row.bull { border-left: 2px solid var(--bull); }
+.h-row.bear { border-left: 2px solid var(--bear); }
+.h-row .ht { color: var(--muted); }
+.h-row .hc.bull { color: var(--bull); }
+.h-row .hc.bear { color: var(--bear); }
+
+/* No data */
+.empty { padding: 24px 12px; text-align: center; color: var(--muted); font-size: 11px; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <span class="symbol">BTCUSDT</span>
+  <span class="interval-tag">1m</span>
+  <div class="topbar-ohlc">
+    <span class="lbl">O</span><span class="val val-o" id="tb-o">—</span>
+    <span class="lbl">H</span><span class="val val-h" id="tb-h">—</span>
+    <span class="lbl">L</span><span class="val val-l" id="tb-l">—</span>
+    <span class="lbl">C</span><span class="val val-c" id="tb-c">—</span>
+    <span class="val val-chg" id="tb-chg"></span>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="live-txt">CONNECTING</span>
+    </div>
+  </div>
+</div>
+
+<!-- Price Ticker -->
+<div class="ticker">
+  <div id="ticker-price">—</div>
+  <div id="ticker-change"></div>
+</div>
+
+<!-- Main Layout -->
+<div class="layout">
+
+  <!-- Chart -->
+  <div class="chart-pane">
+    <div id="chart-wrap">
+      <canvas id="c"></canvas>
+      <div id="crosshair-tip"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+
+    <!-- Timer -->
+    <div class="panel-section">
+      <div class="panel-title">Candle Closes In</div>
+      <div class="timer-row">
+        <span class="timer-label">Remaining</span>
+        <span id="timer-val">—</span>
+      </div>
+      <div id="timer-track"><div id="timer-fill" style="width:100%"></div></div>
+    </div>
+
+    <!-- Live Stats -->
+    <div class="panel-section">
+      <div class="panel-title">Current Candle</div>
+      <div class="stats-grid">
+        <div class="stat-item"><div class="sl">Open</div>   <div class="sv" id="s-o" style="color:var(--text)">—</div></div>
+        <div class="stat-item"><div class="sl">High</div>   <div class="sv" id="s-h" style="color:var(--bull)">—</div></div>
+        <div class="stat-item"><div class="sl">Low</div>    <div class="sv" id="s-l" style="color:var(--bear)">—</div></div>
+        <div class="stat-item"><div class="sl">Close</div>  <div class="sv" id="s-c" style="color:#f0c040">—</div></div>
+        <div class="stat-item"><div class="sl">Range</div>  <div class="sv" id="s-r" style="color:var(--muted)">—</div></div>
+        <div class="stat-item"><div class="sl">Change</div> <div class="sv" id="s-chg">—</div></div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="h-header">
+      <span>TIME</span><span>OPEN</span><span>CLOSE</span><span>CHG%</span>
+    </div>
+    <div class="history-scroll">
+      <div id="history-list"><div class="empty">Waiting for closed candles…<br/><small>~60s for first candle</small></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const CANDLE_SECS = 60;
+const POLL_MS     = 400;
+let history = [];
+let live    = null;
+let hoveredCandle = null;
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const r = await fetch('candles.json?t=' + Date.now());
+    if (!r.ok) return;
+    const d = await r.json();
+    live    = d.live;
+    history = d.history || [];
+    setLive(true);
+    render();
+  } catch(e) {
+    setLive(false);
+  }
+}
+
+function setLive(on) {
+  document.getElementById('live-dot').className = 'live-dot' + (on ? ' on' : '');
+  document.getElementById('live-txt').textContent = on ? 'LIVE' : 'CONNECTING';
+}
+
+// ── Formatting ────────────────────────────────────────────────────────────────
+function fp(v, dec=2) {
+  if (v == null) return '—';
+  return v.toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function pctStr(o, c) {
+  if (!o || !c) return '';
+  const p = ((c - o) / o * 100);
+  return (p >= 0 ? '+' : '') + p.toFixed(2) + '%';
+}
+
+// ── Render all UI ─────────────────────────────────────────────────────────────
+function render() {
+  if (!live) return;
+
+  const bull = live.current >= live.open;
+  const col  = bull ? 'var(--bull)' : 'var(--bear)';
+  const chg  = live.current - live.open;
+  const pct  = live.open ? ((chg / live.open) * 100).toFixed(2) : 0;
+
+  // Ticker
+  const tp = document.getElementById('ticker-price');
+  tp.textContent = '$' + fp(live.current);
+  tp.style.color = col;
+  const tc = document.getElementById('ticker-change');
+  tc.textContent = (bull?'+':'') + fp(chg) + ' (' + (bull?'+':'') + pct + '%)';
+  tc.style.color = col;
+
+  // Topbar OHLC
+  document.getElementById('tb-o').textContent = fp(live.open);
+  document.getElementById('tb-h').textContent = fp(live.high);
+  document.getElementById('tb-l').textContent = fp(live.low);
+  document.getElementById('tb-c').textContent = fp(live.current);
+  const tbc = document.getElementById('tb-chg');
+  tbc.textContent = (bull?'+':'') + pct + '%';
+  tbc.style.color = col;
+
+  // Right panel stats
+  document.getElementById('s-o').textContent = fp(live.open);
+  document.getElementById('s-h').textContent = fp(live.high);
+  document.getElementById('s-l').textContent = fp(live.low);
+  document.getElementById('s-c').textContent = live.close ? fp(live.close) : '—';
+  const rng = live.high && live.low ? fp(live.high - live.low) : '—';
+  document.getElementById('s-r').textContent = rng !== '—' ? '$' + rng : '—';
+  const sc = document.getElementById('s-chg');
+  sc.textContent = (bull?'+':'') + pct + '%';
+  sc.style.color = col;
+
+  // Timer
+  const rem = Math.max(0, live.remaining);
+  document.getElementById('timer-val').textContent = rem + 's';
+  const fill = document.getElementById('timer-fill');
+  fill.style.width = (rem / CANDLE_SECS * 100) + '%';
+  fill.style.background = rem < 10 ? 'var(--bear)' : rem < 20 ? '#f0c040' : 'var(--bull)';
+
+  // Chart
+  drawChart();
+
+  // History list
+  renderHistory();
+}
+
+// ── Candlestick Chart ─────────────────────────────────────────────────────────
+function drawChart() {
+  const wrap   = document.getElementById('chart-wrap');
+  const canvas = document.getElementById('c');
+  const dpr    = window.devicePixelRatio || 1;
+  const W      = wrap.clientWidth;
+  const H      = wrap.clientHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  // Combine closed history + live candle as a "forming" candle
+  const allCandles = [
+    ...history,
+    live ? { time: live.time, open: live.open, high: live.high, low: live.low, close: live.current, live: true } : null
+  ].filter(Boolean);
+
+  if (allCandles.length === 0) {
+    ctx.fillStyle = '#2a2e39';
+    ctx.font = '13px IBM Plex Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText('Waiting for data...', W / 2, H / 2);
+    return;
+  }
+
+  // Show last N candles that fit
+  const PAD   = { top: 24, right: 64, bottom: 28, left: 8 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top  - PAD.bottom;
+
+  // Candle sizing — TradingView style
+  const MAX_VISIBLE = Math.floor(chartW / 9);
+  const data   = allCandles.slice(-MAX_VISIBLE);
+  const n      = data.length;
+  const slotW  = chartW / Math.max(n, 1);
+  const bodyW  = Math.max(2, Math.min(slotW * 0.6, 14));
+
+  // Price range
+  const prices = data.flatMap(c => [c.high, c.low]);
+  let minP = Math.min(...prices);
+  let maxP = Math.max(...prices);
+  const pad = (maxP - minP) * 0.12 || 50;
+  minP -= pad; maxP += pad;
+  const range = maxP - minP;
+
+  function yOf(p) { return PAD.top + chartH * (1 - (p - minP) / range); }
+
+  // ── Grid lines + right-axis price labels ──
+  const gridSteps = 5;
+  ctx.textAlign = 'left';
+  ctx.font = '10px IBM Plex Mono';
+
+  for (let i = 0; i <= gridSteps; i++) {
+    const p = minP + (range / gridSteps) * i;
+    const y = yOf(p);
+    // Grid line
+    ctx.strokeStyle = '#1e2332';
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    // Price label
+    ctx.fillStyle = '#4a4f60';
+    ctx.fillText(fp(p, 0), W - PAD.right + 6, y + 3);
+  }
+
+  // ── Current price line ──
+  if (live && live.current) {
+    const y = yOf(live.current);
+    const bull = live.current >= live.open;
+    ctx.strokeStyle = bull ? 'var(--bull)' : 'var(--bear)';
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Price tag on right axis
+    const col = bull ? '#26a69a' : '#ef5350';
+    ctx.fillStyle = col;
+    ctx.fillRect(W - PAD.right + 1, y - 9, PAD.right - 2, 17);
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px IBM Plex Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText(fp(live.current, 0), W - PAD.right + 4, y + 3);
+  }
+
+  // ── Draw candles ──
+  data.forEach((c, i) => {
+    const x      = PAD.left + i * slotW + slotW / 2;
+    const bull   = c.close >= c.open;
+    const col    = c.live ? (bull ? '#26a69a88' : '#ef535088') : (bull ? '#26a69a' : '#ef5350');
+    const openY  = yOf(c.open);
+    const closeY = yOf(c.close);
+    const highY  = yOf(c.high);
+    const lowY   = yOf(c.low);
+    const top    = Math.min(openY, closeY);
+    const bodyH  = Math.max(1, Math.abs(closeY - openY));
+
+    // Wick
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, highY);
+    ctx.lineTo(x, lowY);
+    ctx.stroke();
+
+    // Body
+    ctx.fillStyle = col;
+    ctx.fillRect(x - bodyW / 2, top, bodyW, bodyH);
+
+    // Doji line
+    if (bodyH < 1) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - bodyW / 2, openY);
+      ctx.lineTo(x + bodyW / 2, openY);
+      ctx.stroke();
+    }
+
+    // Time label — every ~5 candles
+    if (i % Math.max(1, Math.floor(n / 8)) === 0) {
+      ctx.fillStyle = '#4a4f60';
+      ctx.font = '9px IBM Plex Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.time, x, H - PAD.bottom + 14);
+    }
+  });
+}
+
+// ── History List ──────────────────────────────────────────────────────────────
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!history.length) {
+    el.innerHTML = '<div class="empty">Waiting for closed candles…<br/><small>~60s for first candle</small></div>';
+    return;
+  }
+  el.innerHTML = [...history].reverse().map(c => {
+    const bull = c.close >= c.open;
+    const pct  = ((c.close - c.open) / c.open * 100).toFixed(2);
+    const sign = bull ? '+' : '';
+    return `<div class="h-row ${bull?'bull':'bear'}">
+      <span class="ht">${c.time}</span>
+      <span>${fp(c.open,0)}</span>
+      <span>${fp(c.close,0)}</span>
+      <span class="hc ${bull?'bull':'bear'}">${sign}${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Crosshair Tooltip ─────────────────────────────────────────────────────────
+const tip = document.getElementById('crosshair-tip');
+document.getElementById('chart-wrap').addEventListener('mousemove', e => {
+  const wrap = document.getElementById('chart-wrap');
+  const rect  = wrap.getBoundingClientRect();
+  const mx    = e.clientX - rect.left;
+
+  const allCandles = [...history, live ? {...live, close: live.current} : null].filter(Boolean);
+  if (!allCandles.length) return;
+
+  const W      = wrap.clientWidth;
+  const PAD_L  = 8;
+  const PAD_R  = 64;
+  const chartW = W - PAD_L - PAD_R;
+  const MAX_VISIBLE = Math.floor(chartW / 9);
+  const data   = allCandles.slice(-MAX_VISIBLE);
+  const n      = data.length;
+  const slotW  = chartW / Math.max(n, 1);
+  const idx    = Math.floor((mx - PAD_L) / slotW);
+
+  if (idx < 0 || idx >= n) { tip.style.display = 'none'; return; }
+  const c    = data[idx];
+  const bull = c.close >= c.open;
+  const pct  = c.open ? ((c.close - c.open) / c.open * 100).toFixed(2) : 0;
+
+  tip.innerHTML = `
+    <div style="color:var(--muted);margin-bottom:4px">${c.time}</div>
+    <div>O <span style="color:var(--text)">${fp(c.open)}</span></div>
+    <div>H <span style="color:var(--bull)">${fp(c.high)}</span></div>
+    <div>L <span style="color:var(--bear)">${fp(c.low)}</span></div>
+    <div>C <span style="color:${bull?'var(--bull)':'var(--bear)'}">${fp(c.close)}</span></div>
+    <div style="margin-top:4px;color:${bull?'var(--bull)':'var(--bear)'}">${bull?'+':''}${pct}%</div>
+  `;
+
+  let tx = e.clientX - rect.left + 14;
+  let ty = e.clientY - rect.top  + 14;
+  if (tx + 160 > W) tx = tx - 170;
+  tip.style.left    = tx + 'px';
+  tip.style.top     = ty + 'px';
+  tip.style.display = 'block';
+});
+
+document.getElementById('chart-wrap').addEventListener('mouseleave', () => {
+  tip.style.display = 'none';
+});
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', drawChart);
+
+// ── Poll ──────────────────────────────────────────────────────────────────────
+setInterval(fetchData, POLL_MS);
+fetchData();
+</script>
+</body>
+</html>
